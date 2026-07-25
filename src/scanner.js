@@ -1,14 +1,15 @@
 // ======================================
-// Spectra Guard v4.1 Scanner Engine
-// Passive Website Analysis
+// Spectra Guard v4.1
+// Website Scanner Engine
+// Passive Analysis Only
 // ======================================
 
 
 import {
 
 checkHeaders,
-detectVulnerablePatterns,
-calculateRisk
+detectVulnerabilities,
+calculateScore
 
 } from "./security.js";
 
@@ -17,351 +18,366 @@ calculateRisk
 
 
 
-export async function scanWebsite(url){
 
 
+export async function scanWebsite(targetUrl){
 
-    let target;
 
 
+let website;
 
-    try{
 
 
-        target = new URL(url);
+// Validate URL
 
 
-    }
+try{
 
-    catch{
 
+website = new URL(targetUrl);
 
-        return {
 
-            found:false,
 
-            error:"Invalid website URL"
+}
 
-        };
+catch{
 
-    }
 
+return {
 
+found:false,
 
+error:"Website not found"
 
+};
 
 
+}
 
 
-    try{
 
 
-        const response = await fetch(
-            target.href,
-            {
 
-                method:"GET",
 
-                redirect:"follow",
+// Only allow http/https
 
-                headers:{
 
-                    "User-Agent":
-                    "SpectraGuard Security Scanner"
+if(
 
-                }
+website.protocol !== "https:" &&
 
-            }
-        );
+website.protocol !== "http:"
 
+){
 
 
+return {
 
+found:false,
 
+error:"Invalid website protocol"
 
-        const html =
-        await response.text();
+};
 
 
+}
 
 
 
 
-        const headers =
-        response.headers;
 
 
 
+try{
 
 
 
+const response = await fetch(
 
-        // HTTPS
+website.href,
 
+{
 
-        const https =
-        target.protocol === "https:";
+method:"GET",
 
+redirect:"follow",
 
+headers:{
 
+"User-Agent":
 
+"SpectraGuard Security Scanner"
 
+}
 
+}
 
+);
 
-        // Cookies
 
 
-        const cookies =
-        headers.get(
-            "set-cookie"
-        )
-        ? 1
-        : 0;
 
 
 
+if(!response.ok){
 
 
+return {
 
+found:false,
 
+error:"Website unavailable",
 
-        // Tracker detection
+status:response.status
 
+};
 
-        let trackers = 0;
 
+}
 
 
-        const trackerList = [
 
 
-            "google-analytics",
 
 
-            "googletagmanager",
 
+const html = await response.text();
 
-            "facebook.net",
 
+const headers = response.headers;
 
-            "doubleclick",
 
 
-            "hotjar"
 
 
-        ];
 
 
 
 
+// HTTPS check
 
-        trackerList.forEach(
-            tracker=>{
 
+const https =
 
-                if(
-                    html.includes(tracker)
-                ){
+website.protocol === "https:";
 
-                    trackers++;
 
-                }
 
 
-            }
 
-        );
 
 
 
 
+// Cookie detection
 
 
+const cookieHeader =
 
+headers.get("set-cookie");
 
 
-        // Security checks
 
+const cookies =
 
-        const headerResult =
-        checkHeaders(headers);
+cookieHeader ? 1 : 0;
 
 
 
 
 
-        const vulnerabilities =
-        detectVulnerablePatterns(html);
 
 
 
 
+// Tracker detection
 
 
+const trackersList = [
 
 
-        const issues =
-        [
+"google-analytics",
 
-            ...headerResult.issues
+"googletagmanager",
 
-        ];
+"doubleclick",
 
+"facebook.net",
 
+"hotjar",
 
+"clarity.ms"
 
+];
 
 
 
-        const allVulnerabilities =
-        [
 
-            ...vulnerabilities
 
-        ];
+let trackers = 0;
 
 
 
+for(
+const tracker of trackersList
+){
 
 
+if(
 
+html.toLowerCase()
 
+.includes(
 
+tracker
 
-        // Score system
+)
 
+){
 
-        let score = 100;
 
+trackers++;
 
+}
 
 
+}
 
-        if(!https){
 
-            score -= 25;
 
-        }
 
 
 
-        score -=
-        issues.length * 5;
 
 
 
-        score -=
-        allVulnerabilities.length * 3;
+// Security analysis
 
 
+const securityResult =
 
-        score -=
-        trackers * 2;
+checkHeaders(headers);
 
 
 
 
 
 
+const vulnerabilities =
 
+detectVulnerabilities(html);
 
-        if(score < 0){
 
-            score = 0;
 
-        }
 
 
 
 
 
 
+const scoreData =
 
+calculateScore({
 
-        return {
+https,
 
+trackers,
 
-            found:true,
+issues:
 
+securityResult.issues.length,
 
-            website:
-            target.hostname,
+vulnerabilities:
 
+vulnerabilities.length
 
+});
 
-            https,
 
 
 
-            cookies,
 
 
 
-            trackers,
 
 
+return {
 
-            technologies:
-            [],
 
+found:true,
 
 
+website:
 
-            vulnerabilities:
-            allVulnerabilities,
+website.hostname,
 
 
 
+https,
 
-            issues,
 
 
+cookies,
 
 
-            recommendations:
-            headerResult.recommendations,
 
+trackers,
 
 
 
-            score,
+score:
 
+scoreData.score,
 
 
-            risk:
-            calculateRisk(score)
 
+risk:
 
+scoreData.risk,
 
-        };
 
 
+issues:
 
+securityResult.issues,
 
 
-    }
 
-    catch(error){
+vulnerabilities,
 
 
-        return {
 
+recommendations:
 
-            found:false,
+scoreData.recommendations
 
 
-            error:
-            "Website could not be scanned"
 
+};
 
 
-        };
 
 
-    }
 
+
+
+}
+
+catch(error){
+
+
+return {
+
+
+found:false,
+
+error:"Unable to scan website"
+
+
+};
+
+
+}
 
 
 }
