@@ -1,1 +1,17 @@
+name = "spectra-guard-api"
 
+main = "src/worker.js"
+
+compatibility_date = "2026-01-01"
+
+
+
+# Cloudflare D1 Database
+
+[[d1_databases]]
+
+binding = "DB"
+
+database_name = "spectra-guard-db"
+
+database_id = "YOUR_DATABASE_ID"
