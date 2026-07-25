@@ -1,26 +1,10 @@
 // ======================================
-// Spectra Guard v4.1 Main API
-// Cloudflare Worker
+// Spectra Guard API v4.1
+// Public Scanner API
 // ======================================
 
 
-import {
-
-registerUser,
-loginUser,
-verifySession
-
-} from "./auth.js";
-
-
-
-import {
-
-scanWebsite
-
-} from "./scanner.js";
-
-
+import { scanWebsite } from "./scanner.js";
 
 
 
@@ -29,29 +13,19 @@ scanWebsite
 export default {
 
 
-async fetch(request, env){
+async fetch(request){
 
 
 
 const cors = {
 
-
 "Access-Control-Allow-Origin":"*",
 
+"Access-Control-Allow-Headers":"Content-Type",
 
-"Access-Control-Allow-Headers":
-
-"Content-Type, Authorization",
-
-
-"Access-Control-Allow-Methods":
-
-"GET, POST, OPTIONS"
-
+"Access-Control-Allow-Methods":"GET, OPTIONS"
 
 };
-
-
 
 
 
@@ -60,17 +34,9 @@ const cors = {
 if(request.method==="OPTIONS"){
 
 
-return new Response(
-
-null,
-
-{
-
+return new Response(null,{
 headers:cors
-
-}
-
-);
+});
 
 
 }
@@ -96,32 +62,25 @@ url.pathname;
 
 
 
-// =================================
-// TEST
-// =================================
+
+// API status
 
 
-if(path==="/"){
+if(path === "/"){
 
 
-return Response.json(
-
-{
+return Response.json({
 
 status:"online",
 
-message:
-"Spectra Guard API v4.1"
+service:"Spectra Guard API",
 
-},
+version:"4.1"
 
-{
 
+},{
 headers:cors
-
-}
-
-);
+});
 
 
 }
@@ -134,172 +93,38 @@ headers:cors
 
 
 
-// =================================
-// REGISTER
-// =================================
+// Website scanner
 
 
 if(
-path==="/register"
-&&
-request.method==="POST"
+path === "/scan" &&
+request.method === "GET"
 ){
 
 
 
-const body =
-await request.json();
+const target =
 
+url.searchParams.get("url");
 
 
 
 
-const result =
 
-await registerUser(
+if(!target){
 
-env,
 
-body.username,
+return Response.json({
 
-body.email,
+found:false,
 
-body.password
+error:"No website URL provided"
 
-);
 
-
-
-
-
-return Response.json(
-
-result,
-
-{
-
-headers:cors
-
-}
-
-);
-
-
-
-}
-
-
-
-
-
-
-
-
-
-// =================================
-// LOGIN
-// =================================
-
-
-if(
-path==="/login"
-&&
-request.method==="POST"
-){
-
-
-
-const body =
-await request.json();
-
-
-
-
-
-const result =
-
-await loginUser(
-
-env,
-
-body.email,
-
-body.password
-
-);
-
-
-
-
-
-return Response.json(
-
-result,
-
-{
-
-headers:cors
-
-}
-
-);
-
-
-
-}
-
-
-
-
-
-
-
-
-
-// =================================
-// WEBSITE SCAN
-// =================================
-
-
-if(
-path==="/scan"
-&&
-request.method==="GET"
-){
-
-
-
-const website =
-
-url.searchParams.get(
-"url"
-);
-
-
-
-
-
-if(!website){
-
-
-return Response.json(
-
-{
-
-error:
-"Missing URL"
-
-},
-
-{
-
+},{
 status:400,
-
 headers:cors
-
-}
-
-);
+});
 
 
 }
@@ -312,11 +137,7 @@ headers:cors
 
 const result =
 
-await scanWebsite(
-
-website
-
-);
+await scanWebsite(target);
 
 
 
@@ -346,499 +167,24 @@ headers:cors
 
 
 
+return Response.json({
 
-// =================================
-// SAVE SCAN
-// =================================
+error:"Route not found"
 
 
-if(
-path==="/save-scan"
-&&
-request.method==="POST"
-){
-
-
-
-const auth =
-
-request.headers.get(
-"Authorization"
-);
-
-
-
-
-
-if(!auth){
-
-
-return Response.json(
-
-{
-
-error:
-"Login required"
-
-},
-
-{
-
-status:401,
-
-headers:cors
-
-}
-
-);
-
-
-}
-
-
-
-
-
-
-
-const token =
-
-auth.replace(
-"Bearer ",
-""
-);
-
-
-
-
-
-
-const userId =
-
-await verifySession(
-
-env,
-
-token
-
-);
-
-
-
-
-
-
-
-if(!userId){
-
-
-return Response.json(
-
-{
-
-error:
-"Invalid session"
-
-},
-
-{
-
-status:401,
-
-headers:cors
-
-}
-
-);
-
-
-}
-
-
-
-
-
-
-
-
-const data =
-
-await request.json();
-
-
-
-
-
-
-
-
-let website =
-
-await env.DB
-
-.prepare(
-
-`
-
-SELECT id
-
-FROM websites
-
-WHERE user_id=?
-
-AND url=?
-
-`
-
-)
-
-.bind(
-
-userId,
-
-data.website
-
-)
-
-.first();
-
-
-
-
-
-
-
-if(!website){
-
-
-
-const created =
-
-await env.DB
-
-.prepare(
-
-`
-
-INSERT INTO websites
-
-(user_id,url)
-
-VALUES(?,?)
-
-`
-
-)
-
-.bind(
-
-userId,
-
-data.website
-
-)
-
-.run();
-
-
-
-
-
-website = {
-
-
-id:
-created.meta.last_row_id
-
-
-};
-
-
-
-}
-
-
-
-
-
-
-
-
-
-await env.DB
-
-.prepare(
-
-`
-
-INSERT INTO scans
-
-(
-
-website_id,
-
-score,
-
-risk,
-
-https,
-
-cookies,
-
-trackers,
-
-technologies,
-
-vulnerabilities,
-
-issues,
-
-recommendations
-
-)
-
-VALUES
-
-(?,?,?,?,?,?,?,?,?,?)
-
-`
-
-)
-
-.bind(
-
-website.id,
-
-data.score,
-
-data.risk,
-
-data.https ? 1 : 0,
-
-data.cookies,
-
-data.trackers,
-
-JSON.stringify(
-data.technologies
-),
-
-JSON.stringify(
-data.vulnerabilities
-),
-
-JSON.stringify(
-data.issues
-),
-
-JSON.stringify(
-data.recommendations
-)
-
-)
-
-.run();
-
-
-
-
-
-
-
-return Response.json(
-
-{
-
-success:true
-
-},
-
-{
-
-headers:cors
-
-}
-
-);
-
-
-
-}
-
-
-
-
-
-
-
-
-
-// =================================
-// SCAN HISTORY
-// =================================
-
-
-if(
-path==="/history"
-&&
-request.method==="GET"
-){
-
-
-
-const auth =
-
-request.headers.get(
-"Authorization"
-);
-
-
-
-
-
-const token =
-
-auth?.replace(
-"Bearer ",
-""
-);
-
-
-
-
-
-
-const userId =
-
-await verifySession(
-
-env,
-
-token
-
-);
-
-
-
-
-
-
-if(!userId){
-
-
-return Response.json(
-
-{
-
-error:
-"Unauthorized"
-
-},
-
-{
-
-status:401,
-
-headers:cors
-
-}
-
-);
-
-
-}
-
-
-
-
-
-
-
-
-const history =
-
-await env.DB
-
-.prepare(
-
-`
-
-SELECT
-
-websites.url,
-
-scans.*
-
-FROM scans
-
-JOIN websites
-
-ON scans.website_id = websites.id
-
-WHERE websites.user_id=?
-
-ORDER BY scans.created_at DESC
-
-`
-
-)
-
-.bind(userId)
-
-.all();
-
-
-
-
-
-
-
-
-return Response.json(
-
-history.results,
-
-{
-
-headers:cors
-
-}
-
-);
-
-
-
-}
-
-
-
-
-
-
-
-
-
-return Response.json(
-
-{
-
-error:
-"Route not found"
-
-},
-
-{
+},{
 
 status:404,
 
 headers:cors
 
+});
+
+
+
+
+
 }
 
-);
-
-
-
-}
 
 };
